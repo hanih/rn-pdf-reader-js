@@ -2,7 +2,7 @@ import * as React from 'react'
 import * as CSS from 'csstype'
 import { View, ActivityIndicator, Platform, StyleSheet } from 'react-native'
 import { WebView } from 'react-native-webview'
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import {
   WebViewErrorEvent,
   WebViewNavigationEvent,
