@@ -2,7 +2,7 @@ import * as React from 'react'
 import * as CSS from 'csstype'
 import { View, ActivityIndicator, Platform, StyleSheet } from 'react-native'
 import { WebView } from 'react-native-webview'
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import {
   WebViewErrorEvent,
   WebViewNavigationEvent,
@@ -53,8 +53,7 @@ export interface Props {
   useGoogleReader?: boolean
   useGoogleDriveViewer?: boolean
   withScroll?: boolean
-  withPinchZoom?: boolean
-  maximumPinchZoomScale?: number
+  alwaysUseHtmlViewer?: boolean
   onLoad?(event: WebViewNavigationEvent): void
   onLoadEnd?(event: WebViewNavigationEvent | WebViewErrorEvent): void
   onError?(event: WebViewErrorEvent | WebViewHttpErrorEvent | string): void
@@ -116,14 +115,14 @@ function viewerHtml(
   <body>
      <div id="file" data-file="${base64}"></div>
      <div id="react-container"></div>
-     <script type="text/javascript" src="bundle.js"></script>
+     <script type="text/javascript">${bundleJS}</script>
    </body>
 </html>
 `
 }
 
 // PATHS
-const bundleJsPath = `${cacheDirectory}bundle.js`
+// const bundleJsPath = `${cacheDirectory}bundle.js`
 const htmlPath = `${cacheDirectory}index.html`
 const pdfPath = `${cacheDirectory}file.pdf`
 
@@ -134,21 +133,8 @@ async function writeWebViewReaderFileAsync(
   withPinchZoom?: boolean,
   maximumPinchZoomScale?: number,
 ): Promise<void> {
-  const { exists, md5 } = await getInfoAsync(bundleJsPath, { md5: true })
   const bundleContainer = require('./bundleContainer')
-  if (__DEV__ || !exists || bundleContainer.getBundleMd5() !== md5) {
-    await writeAsStringAsync(bundleJsPath, bundleContainer.getBundle())
-  }
-  await writeAsStringAsync(
-    htmlPath,
-    viewerHtml(
-      data,
-      customStyle,
-      withScroll,
-      withPinchZoom,
-      maximumPinchZoomScale,
-    ),
-  )
+  await writeAsStringAsync(htmlPath, viewerHtml(data, customStyle||null, withScroll || false, bundleContainer.getBundle()))
 }
 
 async function writePDFAsync(base64: string) {
@@ -346,22 +332,21 @@ class PdfReader extends React.Component<Props, State> {
       useGoogleReader,
       useGoogleDriveViewer,
       source: { uri, base64 },
+      alwaysUseHtmlViewer
     } = this.props
 
     if (useGoogleReader) {
       return 'GOOGLE_READER'
     }
 
-    if (useGoogleDriveViewer) {
-      return 'GOOGLE_DRIVE_VIEWER';
-    }
-
-    if (Platform.OS === 'ios') {
-      if (uri !== undefined) {
-        return 'DIRECT_URL'
-      }
-      if (base64 !== undefined) {
-        return 'BASE64_TO_LOCAL_PDF'
+    if(!alwaysUseHtmlViewer) {
+      if (Platform.OS === 'ios') {
+        if (uri !== undefined) {
+          return 'DIRECT_URL'
+        }
+        if (base64 !== undefined) {
+          return 'BASE64_TO_LOCAL_PDF'
+        }
       }
     }
 
@@ -475,7 +460,7 @@ class PdfReader extends React.Component<Props, State> {
               onError,
               onHttpError: onError,
               style,
-              source: renderedOnce || !isAndroid ? source : undefined,
+              source: renderedOnce || !isAndroid ? source : { html: '' },
             }}
             allowFileAccess={isAndroid}
             allowFileAccessFromFileURLs={isAndroid}
